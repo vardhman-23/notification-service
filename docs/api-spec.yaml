@@ -1,0 +1,465 @@
+openapi: 3.1.0
+info:
+  title: Enterprise Notification Management Service API
+  description: |
+    Production-grade event-driven notification management service prototype.
+    Features composite multi-key idempotency deduplication, ADR-001 Intelligent Fallback Routing
+    (FINRA/SEC regulatory overrides, quiet-hours diversion, opt-out diversion), Resilience4j fault tolerance,
+    and cross-thread distributed tracing via `X-Correlation-ID`.
+  version: 1.0.0
+  contact:
+    name: Notification Service Platform Team
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development Environment
+
+paths:
+  /api/v1/notifications:
+    post:
+      summary: Submit alert or notification request
+      description: |
+        Accepts alert notifications from upstream systems. Checks idempotency using the composite key
+        (`sourceSystem`, `eventId`, `idempotencyKey`).
+        - If new: Returns `202 Accepted` with `Location` header and asynchronously initiates ADR-001 routing and delivery.
+        - If duplicate: Returns `200 OK` with existing record and records `SUPPRESSED_DUPLICATE` in audit trail.
+      operationId: submitNotification
+      tags:
+        - Notifications
+      parameters:
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          description: Distributed tracing correlation ID. If omitted, the service generates a fresh UUID.
+          schema:
+            type: string
+            format: uuid
+            example: "903677c0-6b24-4e9e-ac7a-949b2577a607"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequestDto'
+            examples:
+              criticalMarginCall:
+                summary: Critical Margin Breach (Forces SMS + EMAIL)
+                value:
+                  sourceSystem: "trading-platform"
+                  eventId: "trade-evt-100"
+                  idempotencyKey: "idem-margin-100"
+                  notificationType: "MARGIN_CALL"
+                  severity: "CRITICAL"
+                  priority: "URGENT"
+                  subject: "Immediate Margin Call Breach Notice"
+                  body: "Your portfolio margin deposit is required within 60 minutes."
+                  recipients:
+                    - recipientId: "client_trader_01"
+                      destination: "trader@example.com"
+                      preferredChannels: "EMAIL"
+              portfolioRebalance:
+                summary: Portfolio Rebalance (Quiet Hours / Opt-Out Fallback)
+                value:
+                  sourceSystem: "portfolio-service"
+                  eventId: "port-evt-200"
+                  idempotencyKey: "idem-port-200"
+                  notificationType: "REBALANCE_NOTICE"
+                  severity: "LOW"
+                  priority: "NORMAL"
+                  subject: "Quarterly Portfolio Rebalance Completed"
+                  body: "Your equity/fixed-income allocation was adjusted to target weights."
+                  recipients:
+                    - recipientId: "client_investor_02"
+                      destination: "investor@example.com"
+                      preferredChannels: "SMS"
+                      optedOutChannels: "SMS"
+                      quietHoursStart: 22
+                      quietHoursEnd: 7
+      responses:
+        '202':
+          description: Notification accepted for asynchronous processing
+          headers:
+            Location:
+              description: Relative URI for status tracking
+              schema:
+                type: string
+                example: "/api/v1/notifications/8a424827-6d86-429f-8317-6b38a47c6f81"
+            X-Correlation-ID:
+              description: Correlation ID for end-to-end distributed tracing
+              schema:
+                type: string
+                example: "903677c0-6b24-4e9e-ac7a-949b2577a607"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponseDto'
+        '200':
+          description: Duplicate submission recognized and suppressed
+          headers:
+            X-Correlation-ID:
+              description: Distributed tracing ID
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponseDto'
+        '400':
+          description: Invalid request payload or bean validation failure
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+        '500':
+          description: Internal server error
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  /api/v1/notifications/{id}:
+    get:
+      summary: Query notification status, attempts, and audit timeline
+      description: Returns aggregate delivery status, per-recipient channel progress, metrics summary, and chronological audit history.
+      operationId: getNotificationStatus
+      tags:
+        - Notifications
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique UUID of the notification
+          schema:
+            type: string
+            format: uuid
+            example: "8a424827-6d86-429f-8317-6b38a47c6f81"
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comprehensive status and audit history retrieved
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationStatusResponseDto'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  /api/v1/notifications/{id}/dispatch:
+    post:
+      summary: Manually trigger routing and delivery pipeline
+      description: Idempotently executes channel resolution and provider dispatch for notifications in `ACCEPTED` or `ROUTED` state.
+      operationId: dispatchNotification
+      tags:
+        - Notifications
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the notification to dispatch
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pipeline executed successfully, returning updated status
+          headers:
+            X-Correlation-ID:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationStatusResponseDto'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorResponse'
+
+  /actuator/health:
+    get:
+      summary: Service health check
+      operationId: healthCheck
+      tags:
+        - Observability
+      responses:
+        '200':
+          description: Service is UP and healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+
+components:
+  schemas:
+    NotificationRequestDto:
+      type: object
+      required:
+        - sourceSystem
+        - eventId
+        - idempotencyKey
+        - notificationType
+        - severity
+        - priority
+        - subject
+        - body
+        - recipients
+      properties:
+        sourceSystem:
+          type: string
+          description: Calling upstream microservice identifier
+          example: "trading-platform"
+        eventId:
+          type: string
+          description: Upstream business event ID
+          example: "trade-evt-100"
+        idempotencyKey:
+          type: string
+          description: Client-provided idempotency key for deduplication
+          example: "idem-margin-100"
+        notificationType:
+          type: string
+          description: Business notification classification
+          example: "MARGIN_CALL"
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          example: "CRITICAL"
+        priority:
+          type: string
+          enum: [LOW, NORMAL, HIGH, URGENT]
+          example: "URGENT"
+        subject:
+          type: string
+          example: "Margin Breach Alert"
+        body:
+          type: string
+          example: "Immediate margin deposit required."
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        recipients:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecipientRequestDto'
+
+    RecipientRequestDto:
+      type: object
+      required:
+        - recipientId
+        - destination
+        - preferredChannels
+      properties:
+        recipientId:
+          type: string
+          example: "client_trader_01"
+        destination:
+          type: string
+          example: "trader@example.com"
+        preferredChannels:
+          type: string
+          description: Comma-delimited list of preferred delivery channels (e.g. EMAIL, SMS)
+          example: "EMAIL,SMS"
+        optedOutChannels:
+          type: string
+          description: Comma-delimited list of channels user explicitly opted out from
+          example: "SMS"
+          nullable: true
+        quietHoursStart:
+          type: integer
+          description: Quiet hours window start hour in 24h UTC (0-23)
+          example: 22
+          nullable: true
+        quietHoursEnd:
+          type: integer
+          description: Quiet hours window end hour in 24h UTC (0-23)
+          example: 7
+          nullable: true
+
+    NotificationResponseDto:
+      type: object
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+        sourceSystem:
+          type: string
+        eventId:
+          type: string
+        idempotencyKey:
+          type: string
+        notificationType:
+          type: string
+        severity:
+          type: string
+        priority:
+          type: string
+        status:
+          type: string
+          enum: [ACCEPTED, ROUTED, DELIVERING, DELIVERED, PARTIALLY_DELIVERED, FAILED, EXPIRED, SUPPRESSED_DUPLICATE]
+        subject:
+          type: string
+        body:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    NotificationStatusResponseDto:
+      type: object
+      properties:
+        notificationId:
+          type: string
+          format: uuid
+        sourceSystem:
+          type: string
+        eventId:
+          type: string
+        idempotencyKey:
+          type: string
+        notificationType:
+          type: string
+        severity:
+          type: string
+        priority:
+          type: string
+        aggregateStatus:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        deliverySummary:
+          $ref: '#/components/schemas/DeliverySummaryDto'
+        deliveryProgress:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryProgressDto'
+        auditTimeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditTimelineEntryDto'
+
+    DeliverySummaryDto:
+      type: object
+      properties:
+        totalChannels:
+          type: integer
+        totalAttempts:
+          type: integer
+        successfulCount:
+          type: integer
+        failedCount:
+          type: integer
+        pendingCount:
+          type: integer
+        retryingCount:
+          type: integer
+
+    DeliveryProgressDto:
+      type: object
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+        recipientId:
+          type: string
+        channel:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        attemptNumber:
+          type: integer
+        providerResponseCode:
+          type: string
+        errorMessage:
+          type: string
+          nullable: true
+        executionTimeMs:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    AuditTimelineEntryDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        metadataReason:
+          type: string
+        sanitizedPayloadSummary:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+        correlationId:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+

@@ -41,9 +41,9 @@ resilience4j:
         wait-duration: 500ms
         exponential-backoff-multiplier: 2
         retry-exceptions:
-          - com.schwab.notification.exception.TransientProviderException
+          - com.demo.notification.exception.TransientProviderException
         ignore-exceptions:
-          - com.schwab.notification.exception.PermanentProviderException
+          - com.demo.notification.exception.PermanentProviderException
 
 notification:
   auto-dispatch:

@@ -1,6 +1,6 @@
 # Architecture Overview: Notification Management Service
 
-Enterprise Notification Management Service prototype built for the **Charles Schwab AI-Assisted Software Engineering Assessment**.
+Enterprise Notification Management Service prototype built for the **Enterprise Software Engineering Prototype**.
 
 ---
 
@@ -9,7 +9,7 @@ Enterprise Notification Management Service prototype built for the **Charles Sch
 The service is architected into modular, loosely coupled components following Clean Architecture and Domain-Driven Design (DDD) principles:
 
 ```
-com.schwab.notification
+com.demo.notification
 ├── api
 │   ├── controller
 │   │   └── NotificationController.java       # REST endpoints for submission, status, and on-demand dispatch

@@ -1,6 +1,6 @@
 # Testing Approach, Limitations & Engineering Trade-offs
 
-Documentation detailing the testing strategy, known system limitations, and defensible architectural trade-offs for the **Charles Schwab Notification Management Service**.
+Documentation detailing the testing strategy, known system limitations, and defensible architectural trade-offs for the **Enterprise Notification Management Service**.
 
 ---
 
@@ -24,14 +24,14 @@ The application employs a layered testing pyramid designed to validate determini
 
 | Test Class | Focus Area | Key Invariants Verified |
 |---|---|---|
-| [`NotificationIngestionApiTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/NotificationIngestionApiTest.java) | Ingestion API & DTO validation | HTTP 202 Accepted on valid submission; HTTP 200 OK on duplicate submission; bean validation constraints; composite idempotency key persistence. |
-| [`RoutingServiceTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/RoutingServiceTest.java) | Strategy Channel Routing | Channel resolution based on preferences; provider registry matching; stage creation for delivery attempts; routing audit logs. |
-| [`IntelligentFallbackRoutingTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/IntelligentFallbackRoutingTest.java) | ADR-001 Policy Engine | Tier 1 Regulatory Override (CRITICAL forces SMS+EMAIL); Tier 2 Quiet-Hours Diversion (SMS $\rightarrow$ EMAIL); Tier 3 Opt-Out Fallback (SMS $\rightarrow$ EMAIL). |
-| [`DeliveryWorkerResilienceTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/DeliveryWorkerResilienceTest.java) | Resilience4j Retry & Faults | HTTP 429 rate limit triggers bounded retries; HTTP 400 invalid recipient halts immediately; `RETRY_SCHEDULED` and `FAILED` audit trail generation. |
-| [`NotificationQueryApiTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/NotificationQueryApiTest.java) | Query & Observability | Chronological audit timeline ordering; delivery progress calculation; summary counters (attempts, successful, failed). |
-| [`FlywaySchemaMigrationTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/FlywaySchemaMigrationTest.java) | Database DDL & Indexes | Flyway migration script integrity; PostgreSQL DDL syntax validation; composite unique constraint verification. |
-| [`NotificationEndToEndIntegrationTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/NotificationEndToEndIntegrationTest.java) | End-to-End System Scenarios | Full lifecycle execution (Ingestion $\rightarrow$ Routing $\rightarrow$ Delivery $\rightarrow$ Status Query); on-demand dispatch API. |
-| [`NotificationEndToEndTestcontainersTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/NotificationEndToEndTestcontainersTest.java) | Real PostgreSQL 16 Container | Validates exact PostgreSQL dialect and constraints with graceful skipping (`@DisabledIf("isDockerUnavailable")`) when Docker daemon is not active. |
+| [`NotificationIngestionApiTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/NotificationIngestionApiTest.java) | Ingestion API & DTO validation | HTTP 202 Accepted on valid submission; HTTP 200 OK on duplicate submission; bean validation constraints; composite idempotency key persistence. |
+| [`RoutingServiceTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/RoutingServiceTest.java) | Strategy Channel Routing | Channel resolution based on preferences; provider registry matching; stage creation for delivery attempts; routing audit logs. |
+| [`IntelligentFallbackRoutingTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/IntelligentFallbackRoutingTest.java) | ADR-001 Policy Engine | Tier 1 Regulatory Override (CRITICAL forces SMS+EMAIL); Tier 2 Quiet-Hours Diversion (SMS $\rightarrow$ EMAIL); Tier 3 Opt-Out Fallback (SMS $\rightarrow$ EMAIL). |
+| [`DeliveryWorkerResilienceTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/DeliveryWorkerResilienceTest.java) | Resilience4j Retry & Faults | HTTP 429 rate limit triggers bounded retries; HTTP 400 invalid recipient halts immediately; `RETRY_SCHEDULED` and `FAILED` audit trail generation. |
+| [`NotificationQueryApiTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/NotificationQueryApiTest.java) | Query & Observability | Chronological audit timeline ordering; delivery progress calculation; summary counters (attempts, successful, failed). |
+| [`FlywaySchemaMigrationTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/FlywaySchemaMigrationTest.java) | Database DDL & Indexes | Flyway migration script integrity; PostgreSQL DDL syntax validation; composite unique constraint verification. |
+| [`NotificationEndToEndIntegrationTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/NotificationEndToEndIntegrationTest.java) | End-to-End System Scenarios | Full lifecycle execution (Ingestion $\rightarrow$ Routing $\rightarrow$ Delivery $\rightarrow$ Status Query); on-demand dispatch API. |
+| [`NotificationEndToEndTestcontainersTest`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/NotificationEndToEndTestcontainersTest.java) | Real PostgreSQL 16 Container | Validates exact PostgreSQL dialect and constraints with graceful skipping (`@DisabledIf("isDockerUnavailable")`) when Docker daemon is not active. |
 
 ---
 

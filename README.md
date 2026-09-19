@@ -1,6 +1,6 @@
-# Charles Schwab Notification Management Service
+# Enterprise Notification Management Service
 
-Enterprise Notification Management Service prototype developed for the **Charles Schwab AI-Assisted Software Engineering Assessment**.
+Enterprise Notification Management Service prototype developed for the **Enterprise Software Engineering Prototype**.
 
 This production-oriented prototype accepts notification and alert requests from diverse business and technical systems (Trading Platform, Risk Engine, Account Services, Wealth Management) and reliably delivers them across configurable channels (Email, SMS, Webhook) with **composite idempotency**, **strategy-based channel routing with intelligent fallback**, **bounded Resilience4j retries**, and an **immutable, PII-sanitized audit trail**.
 
@@ -105,15 +105,15 @@ flowchart TD
 
 ---
 
-## 3. Charles Schwab Assessment Mapping
+## 3. Enterprise Notification Service Mapping
 
 | Scenario / Deliverable | Implementation Details | Key Files |
 |---|---|---|
-| **3.1 Greenfield Scenario** | Complete submission API, recipient channel preferences, asynchronous event pipeline, staged delivery attempts, multi-state lifecycle (`ACCEPTED`, `ROUTED`, `DELIVERING`, `DELIVERED`, `FAILED`), aggregate status retrieval. | [`NotificationController.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/api/controller/NotificationController.java)<br>[`NotificationIngestionService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/NotificationIngestionService.java)<br>[`NotificationQueryService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/NotificationQueryService.java) |
-| **3.2 Brownfield Scenario** | Fault tolerance & error classification: Resilience4j `@Retry` with exponential backoff for transient failures (`HTTP 429`, `503`, timeouts), immediate termination for permanent rejections (`HTTP 400`, `401`), failure logging with `RETRY_SCHEDULED`. | [`ProviderDispatchService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/delivery/ProviderDispatchService.java)<br>[`DeliveryWorker.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/delivery/DeliveryWorker.java)<br>[`DeliveryWorkerResilienceTest.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/DeliveryWorkerResilienceTest.java) |
-| **3.3 Ambiguous Scenario** | Architectural Decision Record (**ADR-001**) defining a 3-tier deterministic Intelligent Fallback Engine resolving source demands vs recipient opt-outs vs quiet hours vs FINRA/SEC duty-of-care regulatory overrides. | [`ambiguous-routing.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/scenarios/ambiguous-routing.md)<br>[`RoutingService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/RoutingService.java)<br>[`IntelligentFallbackRoutingTest.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/schwab/notification/IntelligentFallbackRoutingTest.java) |
-| **4.4 Deduplication & Idempotency** | Composite unique constraint (`source_system`, `event_id`, `idempotency_key`). Resubmissions return HTTP 200 with existing record without creating duplicate deliveries, recording `SUPPRESSED_DUPLICATE` in audit history. | [`NotificationIngestionService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/NotificationIngestionService.java)<br>[`V1__init_schema.sql`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/resources/db/migration/V1__init_schema.sql) |
-| **4.9 Audit History** | Tamper-evident, chronological audit logging across all state transitions (`ACCEPTED`, `ROUTED`, `REGULATORY_OVERRIDE_APPLIED`, `CHANNEL_FALLBACK_APPLIED`, `DELIVERED`, `RETRY_SCHEDULED`, `FAILED`). PII-sanitized payloads. | [`AuditLog.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/domain/model/AuditLog.java)<br>[`NotificationQueryService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/NotificationQueryService.java) |
+| **3.1 Greenfield Scenario** | Complete submission API, recipient channel preferences, asynchronous event pipeline, staged delivery attempts, multi-state lifecycle (`ACCEPTED`, `ROUTED`, `DELIVERING`, `DELIVERED`, `FAILED`), aggregate status retrieval. | [`NotificationController.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/api/controller/NotificationController.java)<br>[`NotificationIngestionService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/NotificationIngestionService.java)<br>[`NotificationQueryService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/NotificationQueryService.java) |
+| **3.2 Brownfield Scenario** | Fault tolerance & error classification: Resilience4j `@Retry` with exponential backoff for transient failures (`HTTP 429`, `503`, timeouts), immediate termination for permanent rejections (`HTTP 400`, `401`), failure logging with `RETRY_SCHEDULED`. | [`ProviderDispatchService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/delivery/ProviderDispatchService.java)<br>[`DeliveryWorker.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/delivery/DeliveryWorker.java)<br>[`DeliveryWorkerResilienceTest.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/DeliveryWorkerResilienceTest.java) |
+| **3.3 Ambiguous Scenario** | Architectural Decision Record (**ADR-001**) defining a 3-tier deterministic Intelligent Fallback Engine resolving source demands vs recipient opt-outs vs quiet hours vs FINRA/SEC duty-of-care regulatory overrides. | [`ambiguous-routing.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/scenarios/ambiguous-routing.md)<br>[`RoutingService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/RoutingService.java)<br>[`IntelligentFallbackRoutingTest.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/test/java/com/demo/notification/IntelligentFallbackRoutingTest.java) |
+| **4.4 Deduplication & Idempotency** | Composite unique constraint (`source_system`, `event_id`, `idempotency_key`). Resubmissions return HTTP 200 with existing record without creating duplicate deliveries, recording `SUPPRESSED_DUPLICATE` in audit history. | [`NotificationIngestionService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/NotificationIngestionService.java)<br>[`V1__init_schema.sql`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/resources/db/migration/V1__init_schema.sql) |
+| **4.9 Audit History** | Tamper-evident, chronological audit logging across all state transitions (`ACCEPTED`, `ROUTED`, `REGULATORY_OVERRIDE_APPLIED`, `CHANNEL_FALLBACK_APPLIED`, `DELIVERED`, `RETRY_SCHEDULED`, `FAILED`). PII-sanitized payloads. | [`AuditLog.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/domain/model/AuditLog.java)<br>[`NotificationQueryService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/NotificationQueryService.java) |
 
 ---
 
@@ -146,7 +146,7 @@ curl -X POST http://localhost:8080/api/v1/notifications \
     "recipients": [
       {
         "recipientId": "user_42",
-        "destination": "trader@schwab.com",
+        "destination": "trader@Enterprise.com",
         "preferredChannels": "EMAIL"
       }
     ]
@@ -178,7 +178,7 @@ curl -X POST http://localhost:8080/api/v1/notifications \
     "recipients": [
       {
         "recipientId": "user_99",
-        "destination": "investor@schwab.com",
+        "destination": "investor@Enterprise.com",
         "preferredChannels": "SMS",
         "optedOutChannels": "SMS"
       }

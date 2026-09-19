@@ -1,5 +1,5 @@
 # ==============================================================================
-# Charles Schwab Notification Management Service - Interactive Prototype Demo
+# ENTERPRISE Notification Management Service - Interactive Prototype Demo
 # ==============================================================================
 # Demonstrates end-to-end capabilities against http://localhost:8080:
 # 1. Greenfield: Notification Submission, Routing & Multi-Channel Delivery (CRITICAL)
@@ -50,7 +50,7 @@ $payload1 = @{
     recipients = @(
         @{
             recipientId = "client_trader_01"
-            destination = "trader@schwab.com"
+            destination = "trader@example.com"
             preferredChannels = "EMAIL" # Only requested EMAIL, but CRITICAL will force SMS + EMAIL
         }
     )
@@ -113,7 +113,7 @@ $payload3 = @{
     recipients = @(
         @{
             recipientId = "client_wealth_02"
-            destination = "investor@schwab.com"
+            destination = "investor@example.com"
             preferredChannels = "SMS" # User preferred SMS...
             optedOutChannels = "SMS"  # ...but explicitly opted out of SMS!
         }
@@ -223,7 +223,7 @@ foreach ($audit in $status5.auditTimeline) {
     }
 }
 
-Print-Header "ALL 5 CHARLES SCHWAB PROTOTYPE SCENARIOS VERIFIED SUCCESSFULLY!"
+Print-Header "ALL 5 ENTERPRISE PROTOTYPE SCENARIOS VERIFIED SUCCESSFULLY!"
 Write-Host "H2 Web Console available at: http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:notification_dev_db)" -ForegroundColor Cyan
 Write-Host "Actuator Metrics available at: http://localhost:8080/actuator/metrics" -ForegroundColor Cyan
 Write-Host ""

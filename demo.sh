@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Charles Schwab Notification Management Service - Bash Verification Demo
+# ENTERPRISE Notification Management Service - Bash Verification Demo
 # ==============================================================================
 set -e
 
 BASE_URL="http://localhost:8080"
 
 echo "================================================================================"
-echo "  Charles Schwab Notification Service Prototype - End-to-End Demo"
+echo "  ENTERPRISE Notification Service Prototype - End-to-End Demo"
 echo "================================================================================"
 
 echo ""
@@ -28,7 +28,7 @@ ID1=$(curl -s -X POST "$BASE_URL/api/v1/notifications" \
     "priority": "URGENT",
     "subject": "Margin Call Alert",
     "body": "Margin breach detected.",
-    "recipients": [{"recipientId": "u1", "destination": "trader@schwab.com", "preferredChannels": "EMAIL"}]
+    "recipients": [{"recipientId": "u1", "destination": "trader@example.com", "preferredChannels": "EMAIL"}]
   }' | grep -o '"notificationId":"[^"]*' | cut -d'"' -f4)
 
 echo "Created Notification ID: $ID1"
@@ -49,7 +49,7 @@ curl -s -o /dev/null -w "HTTP Status Code: %{http_code}\n" -X POST "$BASE_URL/ap
     "priority": "URGENT",
     "subject": "Margin Call Alert",
     "body": "Margin breach detected.",
-    "recipients": [{"recipientId": "u1", "destination": "trader@schwab.com", "preferredChannels": "EMAIL"}]
+    "recipients": [{"recipientId": "u1", "destination": "trader@example.com", "preferredChannels": "EMAIL"}]
   }'
 
 echo ""
@@ -65,7 +65,7 @@ ID3=$(curl -s -X POST "$BASE_URL/api/v1/notifications" \
     "priority": "NORMAL",
     "subject": "Portfolio Rebalanced",
     "body": "Portfolio has been rebalanced.",
-    "recipients": [{"recipientId": "u2", "destination": "client@schwab.com", "preferredChannels": "SMS", "optedOutChannels": "SMS"}]
+    "recipients": [{"recipientId": "u2", "destination": "client@example.com", "preferredChannels": "SMS", "optedOutChannels": "SMS"}]
   }' | grep -o '"notificationId":"[^"]*' | cut -d'"' -f4)
 sleep 2
 curl -s "$BASE_URL/api/v1/notifications/$ID3" | grep -o '"metadataReason":"[^"]*'

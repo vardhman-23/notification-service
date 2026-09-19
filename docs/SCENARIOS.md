@@ -1,6 +1,6 @@
 # Assessment Scenarios: Greenfield, Brownfield & Ambiguous Requirements
 
-This document details the three core engineering scenarios mandated by the **Charles Schwab AI-Assisted Software Engineering Assessment**, showcasing **requirement decomposition, execution approach, and empirical validation** for each.
+This document details the three core engineering scenarios mandated by the **Enterprise Software Engineering Prototype**, showcasing **requirement decomposition, execution approach, and empirical validation** for each.
 
 ---
 
@@ -15,10 +15,10 @@ Design and implement the initial notification management capability from a clean
 - **Status Retrieval API**: Implement `GET /api/v1/notifications/{id}` returning aggregate status, channel-by-channel progress, and an immutable audit timeline.
 
 ### 1.2 Execution & Implementation
-- **Data Model**: Created JPA entities [`Notification.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/domain/model/Notification.java), [`NotificationRecipient.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/domain/model/NotificationRecipient.java), [`DeliveryAttempt.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/domain/model/DeliveryAttempt.java), and [`AuditLog.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/domain/model/AuditLog.java).
+- **Data Model**: Created JPA entities [`Notification.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/domain/model/Notification.java), [`NotificationRecipient.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/domain/model/NotificationRecipient.java), [`DeliveryAttempt.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/domain/model/DeliveryAttempt.java), and [`AuditLog.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/domain/model/AuditLog.java).
 - **Flyway DDL**: Created `db/migration/V1__init_schema.sql` defining composite indexes, foreign keys, and audit constraints.
-- **Ingestion Service**: Implemented [`NotificationIngestionService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/NotificationIngestionService.java) with pre-persistence idempotency lookup and concurrent collision safety (`DataIntegrityViolationException` recovery).
-- **Query Service**: Implemented [`NotificationQueryService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/NotificationQueryService.java) calculating aggregated counts and formatting chronological audit events.
+- **Ingestion Service**: Implemented [`NotificationIngestionService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/NotificationIngestionService.java) with pre-persistence idempotency lookup and concurrent collision safety (`DataIntegrityViolationException` recovery).
+- **Query Service**: Implemented [`NotificationQueryService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/NotificationQueryService.java) calculating aggregated counts and formatting chronological audit events.
 
 ### 1.3 Validation Evidence
 - **Automated Tests**:
@@ -47,8 +47,8 @@ Enhance the system with production-grade failure handling, resilience, and error
 - **Delivery Progress Granularity**: Record provider response codes, execution times (ms), attempt counters, and error categories per attempt.
 
 ### 2.2 Execution & Implementation
-- **Provider Abstraction**: Implemented [`EmailChannelProvider.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/channel/EmailChannelProvider.java) (AWS SES) and [`SmsChannelProvider.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/channel/SmsChannelProvider.java) (Twilio) with realistic downstream fault simulation.
-- **Dispatch Service**: Implemented [`ProviderDispatchService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/delivery/ProviderDispatchService.java) utilizing Resilience4j:
+- **Provider Abstraction**: Implemented [`EmailChannelProvider.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/channel/EmailChannelProvider.java) (AWS SES) and [`SmsChannelProvider.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/channel/SmsChannelProvider.java) (Twilio) with realistic downstream fault simulation.
+- **Dispatch Service**: Implemented [`ProviderDispatchService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/delivery/ProviderDispatchService.java) utilizing Resilience4j:
   ```yaml
   resilience4j:
     retry:
@@ -58,9 +58,9 @@ Enhance the system with production-grade failure handling, resilience, and error
           wait-duration: 1000ms
           exponential-backoff-multiplier: 2
           retry-exceptions:
-            - com.schwab.notification.exception.TransientProviderException
+            - com.demo.notification.exception.TransientProviderException
           ignore-exceptions:
-            - com.schwab.notification.exception.PermanentProviderException
+            - com.demo.notification.exception.PermanentProviderException
   ```
 - **Fallback Recovery**: Attached `fallbackMethod = "onRetryExhausted"` to mark the delivery attempt `FAILED` and record terminal audit logs when retry limits are reached.
 
@@ -100,7 +100,7 @@ Drafted [`docs/scenarios/ambiguous-routing.md`](file:///c:/Users/jainv/.gemini/a
 - **Tier 2 (Quiet Hours Diversion)**: For non-critical notifications, intrusive channels (`SMS`) active during user quiet hours are diverted to persistent, non-intrusive channels (`EMAIL`). Audit action: `QUIET_HOURS_FALLBACK`.
 - **Tier 3 (Opt-Out Fallback)**: For non-critical notifications, if a requested channel is opted out, the system diverts to `EMAIL`. Audit action: `CHANNEL_FALLBACK_APPLIED`.
 
-Implemented in [`RoutingService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/schwab/notification/service/RoutingService.java).
+Implemented in [`RoutingService.java`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/src/main/java/com/demo/notification/service/RoutingService.java).
 
 ### 3.3 Validation Evidence
 - **Automated Tests**:

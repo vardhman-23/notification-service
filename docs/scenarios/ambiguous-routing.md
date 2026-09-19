@@ -3,7 +3,7 @@
 - **Status**: Accepted / Approved
 - **Deciders**: Architecture Review Board, Compliance & Risk Committee, Platform Engineering
 - **Date**: 2026-09-18
-- **Context**: Charles Schwab Notification Management Service
+- **Context**: Enterprise Notification Management Service
 
 ---
 

@@ -1,4 +1,4 @@
--- Charles Schwab Notification Management Service
+-- Enterprise Notification Management Service
 -- Schema Initialization V1 (Domain Model & Enums Alignment)
 
 CREATE TABLE IF NOT EXISTS notifications (
