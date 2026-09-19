@@ -30,6 +30,7 @@ public class NotificationIngestionService {
 
     private final NotificationRepository notificationRepository;
     private final AuditLogRepository auditLogRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public IngestionResult ingestNotification(NotificationRequestDto request) {
@@ -104,6 +105,8 @@ public class NotificationIngestionService {
                     .timestamp(Instant.now())
                     .build();
             auditLogRepository.save(initialAuditLog);
+
+            eventPublisher.publishEvent(new com.schwab.notification.delivery.NotificationAcceptedEvent(saved.getNotificationId()));
 
             log.info("New notification successfully accepted with id='{}'", saved.getNotificationId());
             return new IngestionResult(mapToDto(saved), false);

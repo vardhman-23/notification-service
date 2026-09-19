@@ -45,3 +45,8 @@ resilience4j:
         ignore-exceptions:
           - com.schwab.notification.exception.PermanentProviderException
 
+notification:
+  auto-dispatch:
+    enabled: true
+
+

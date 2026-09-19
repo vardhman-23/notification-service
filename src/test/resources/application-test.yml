@@ -33,3 +33,8 @@ resilience4j:
           - com.schwab.notification.exception.TransientProviderException
         ignore-exceptions:
           - com.schwab.notification.exception.PermanentProviderException
+
+notification:
+  auto-dispatch:
+    enabled: false
+

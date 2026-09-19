@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   application:
     name: notification-service
 
@@ -65,4 +67,9 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10000ms
         permitted-number-of-calls-in-half-open-state: 3
+
+notification:
+  auto-dispatch:
+    enabled: ${NOTIFICATION_AUTO_DISPATCH_ENABLED:true}
+
 

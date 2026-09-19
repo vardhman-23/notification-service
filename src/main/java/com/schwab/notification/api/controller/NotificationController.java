@@ -22,6 +22,7 @@ public class NotificationController {
 
     private final NotificationIngestionService ingestionService;
     private final com.schwab.notification.service.NotificationQueryService queryService;
+    private final com.schwab.notification.delivery.AsyncNotificationPipeline asyncPipeline;
 
     @PostMapping
     public ResponseEntity<NotificationResponseDto> submitNotification(@Valid @RequestBody NotificationRequestDto request) {
@@ -45,6 +46,15 @@ public class NotificationController {
     public ResponseEntity<com.schwab.notification.api.dto.NotificationStatusResponseDto> getNotificationStatus(
             @org.springframework.web.bind.annotation.PathVariable java.util.UUID id) {
         log.info("Querying notification status for id='{}'", id);
+        com.schwab.notification.api.dto.NotificationStatusResponseDto response = queryService.getNotificationStatus(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/dispatch")
+    public ResponseEntity<com.schwab.notification.api.dto.NotificationStatusResponseDto> dispatchNotification(
+            @org.springframework.web.bind.annotation.PathVariable java.util.UUID id) {
+        log.info("Explicitly triggering dispatch pipeline for notificationId='{}'", id);
+        asyncPipeline.executePipeline(id);
         com.schwab.notification.api.dto.NotificationStatusResponseDto response = queryService.getNotificationStatus(id);
         return ResponseEntity.ok(response);
     }

@@ -288,5 +288,56 @@ class NotificationEndToEndIntegrationTest {
             assertThat(entry.getMetadataReason()).doesNotContain("password", "token", "secret");
         }
     }
+
+    @Test
+    @DisplayName("Scenario 5: Explicit dispatch endpoint drives accepted notification through routing and delivery")
+    void testManualDispatchEndpoint_DrivesNotificationToDelivered() throws Exception {
+        NotificationRequestDto request = NotificationRequestDto.builder()
+                .sourceSystem("settlement-service")
+                .eventId("evt-settle-" + UUID.randomUUID())
+                .idempotencyKey("idem-settle-" + UUID.randomUUID())
+                .notificationType("TRADE_SETTLEMENT")
+                .severity(Severity.LOW)
+                .priority(Priority.NORMAL)
+                .subject("Trade Settled: 50 SCHW")
+                .body("Your trade has fully settled.")
+                .recipients(List.of(
+                        RecipientRequestDto.builder()
+                                .recipientId("client_settle")
+                                .destination("settle@schwab.com")
+                                .preferredChannels("EMAIL")
+                                .build()
+                ))
+                .build();
+
+        // 1. Submit -> 202 Accepted
+        String submitResp = mockMvc.perform(post("/api/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        NotificationResponseDto dto = objectMapper.readValue(submitResp, NotificationResponseDto.class);
+        UUID notificationId = dto.getNotificationId();
+
+        // 2. Trigger dispatch endpoint -> 200 OK with DELIVERED status
+        mockMvc.perform(post("/api/v1/notifications/{id}/dispatch", notificationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aggregateStatus").value("DELIVERED"))
+                .andExpect(jsonPath("$.deliverySummary.successfulCount").value(1));
+
+        // 3. Verify status query returns updated progress and complete timeline
+        mockMvc.perform(get("/api/v1/notifications/{id}", notificationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.aggregateStatus").value("DELIVERED"))
+                .andExpect(jsonPath("$.deliveryProgress[0].channel").value("EMAIL"))
+                .andExpect(jsonPath("$.deliveryProgress[0].status").value("SENT"))
+                .andExpect(jsonPath("$.auditTimeline[0].action").value("ACCEPTED"))
+                .andExpect(jsonPath("$.auditTimeline[1].action").value("ROUTED"))
+                .andExpect(jsonPath("$.auditTimeline[2].action").value("DELIVERED"));
+    }
 }
 

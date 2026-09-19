@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,20 +39,35 @@ public class RoutingService {
     private final AuditLogRepository auditLogRepository;
 
     @Transactional
+    public RoutingResult routeNotification(UUID notificationId) {
+        return routeNotification(notificationId, LocalTime.now().getHour());
+    }
+
+    @Transactional
+    public RoutingResult routeNotification(UUID notificationId, int currentHour) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + notificationId));
+        return routeNotification(notification, currentHour);
+    }
+
+    @Transactional
     public RoutingResult routeNotification(Notification notification) {
         return routeNotification(notification, LocalTime.now().getHour());
     }
 
     @Transactional
     public RoutingResult routeNotification(Notification notification, int currentHour) {
+        Notification managed = notificationRepository.findById(notification.getNotificationId())
+                .orElse(notification);
+
         log.info("Executing routing for notificationId='{}', severity='{}', evaluationHour={}:00",
-                notification.getNotificationId(), notification.getSeverity(), currentHour);
+                managed.getNotificationId(), managed.getSeverity(), currentHour);
 
         Map<String, Set<ChannelType>> routingMap = new HashMap<>();
 
-        for (NotificationRecipient recipient : notification.getRecipients()) {
+        for (NotificationRecipient recipient : managed.getRecipients()) {
             Set<ChannelType> selectedChannels = resolveChannelsWithIntelligentFallback(
-                    notification, recipient, currentHour);
+                    managed, recipient, currentHour);
 
             // Filter to only available channels
             Set<ChannelType> availableChannels = selectedChannels.stream()
@@ -67,7 +83,7 @@ public class RoutingService {
 
             // Create staged delivery attempts for each resolved channel
             for (ChannelType channel : availableChannels) {
-                boolean attemptExists = notification.getDeliveryAttempts().stream()
+                boolean attemptExists = managed.getDeliveryAttempts().stream()
                         .anyMatch(da -> da.getRecipientId().equals(recipient.getRecipientId()) && da.getChannel() == channel);
 
                 if (!attemptExists) {
@@ -83,17 +99,17 @@ public class RoutingService {
                             .attemptNumber(1)
                             .build();
 
-                    notification.addDeliveryAttempt(attempt);
+                    managed.addDeliveryAttempt(attempt);
                 }
             }
 
             // Log standard routing completion in AuditLog
-            String routingReason = notification.getSeverity() == Severity.CRITICAL
+            String routingReason = managed.getSeverity() == Severity.CRITICAL
                     ? String.format("Severity CRITICAL forced channels %s for recipient '%s'", availableChannels, recipient.getRecipientId())
                     : String.format("Routing completed for recipient '%s'. Final channels: %s", recipient.getRecipientId(), availableChannels);
 
             AuditLog routingAudit = AuditLog.builder()
-                    .notificationId(notification.getNotificationId())
+                    .notificationId(managed.getNotificationId())
                     .action(AuditAction.ROUTED)
                     .metadataReason(routingReason)
                     .sanitizedPayloadSummary(String.format("Recipient: %s, Channels: %s", recipient.getRecipientId(), availableChannels))
@@ -103,8 +119,8 @@ public class RoutingService {
             auditLogRepository.save(routingAudit);
         }
 
-        notification.setStatus(NotificationStatus.ROUTED);
-        Notification updatedNotification = notificationRepository.save(notification);
+        managed.setStatus(NotificationStatus.ROUTED);
+        Notification updatedNotification = notificationRepository.save(managed);
 
         log.info("Routing completed for notificationId='{}', total recipients routed: {}",
                 updatedNotification.getNotificationId(), routingMap.size());
