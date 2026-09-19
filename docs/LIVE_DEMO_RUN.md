@@ -119,3 +119,4 @@ Actuator Metrics available at: http://localhost:8080/actuator/metrics
 | **Intelligent Opt-Out Fallback (ADR-001)** | 3 | When recipient has opted out of SMS, alert diverts automatically to EMAIL. | **Verified**: `CHANNEL_FALLBACK_APPLIED` audit event; delivered via EMAIL. |
 | **Bounded Resilience4j Retry & DLQ** | 4 | Downstream HTTP 429 rate limiting triggers bounded exponential backoff (max 3 retries), routing to `DEAD_LETTER` upon exhaustion. | **Verified**: 3 `RETRY_SCHEDULED` audit events logged; status `DEAD_LETTER`; `ROUTED_TO_DEAD_LETTER` logged. |
 | **Permanent Rejection Short-Circuit** | 5 | Unrecoverable client error (HTTP 400 bad syntax) terminates on attempt #1 with zero retries. | **Verified**: Exactly 1 attempt made; immediate `ROUTED_TO_DEAD_LETTER` to DLQ. |
+
