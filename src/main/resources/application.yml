@@ -1,0 +1,92 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  application:
+    name: notification-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/notification_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 25
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2000ms
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+resilience4j:
+  retry:
+    instances:
+      notificationDeliveryRetry:
+        max-attempts: 3
+        wait-duration: 1000ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.demo.notification.exception.TransientProviderException
+        ignore-exceptions:
+          - com.demo.notification.exception.PermanentProviderException
+  bulkhead:
+    instances:
+      providerDispatchBulkhead:
+        max-concurrent-calls: 25
+        max-wait-duration: 500ms
+  ratelimiter:
+    instances:
+      notificationIngestionRateLimiter:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 0ms
+  circuitbreaker:
+    instances:
+      channelCircuitBreaker:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10000ms
+        permitted-number-of-calls-in-half-open-state: 3
+
+notification:
+  auto-dispatch:
+    enabled: ${NOTIFICATION_AUTO_DISPATCH_ENABLED:true}
+
+
