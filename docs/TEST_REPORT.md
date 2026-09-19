@@ -88,3 +88,4 @@ To reproduce this verification report locally:
 ./mvnw clean verify
 ```
 HTML visual coverage report is generated at: `target/site/jacoco/index.html`.
+
