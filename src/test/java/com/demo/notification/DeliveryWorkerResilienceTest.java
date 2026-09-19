@@ -116,7 +116,7 @@ class DeliveryWorkerResilienceTest {
         deliveryWorker.processDelivery(saved.getNotificationId());
 
         Notification updated = notificationRepository.findById(saved.getNotificationId()).orElseThrow();
-        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
 
         List<DeliveryAttempt> attempts = updated.getDeliveryAttempts();
         assertThat(attempts).hasSize(1);
@@ -128,7 +128,7 @@ class DeliveryWorkerResilienceTest {
         // Verify that RETRY_SCHEDULED was recorded in AuditLog
         List<AuditLog> auditLogs = auditLogRepository.findByNotificationIdOrderByTimestampAsc(saved.getNotificationId());
         assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.RETRY_SCHEDULED);
-        assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.FAILED);
+        assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.ROUTED_TO_DEAD_LETTER);
     }
 
     @Test
@@ -159,7 +159,7 @@ class DeliveryWorkerResilienceTest {
         deliveryWorker.processDelivery(saved.getNotificationId());
 
         Notification updated = notificationRepository.findById(saved.getNotificationId()).orElseThrow();
-        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
 
         List<DeliveryAttempt> attempts = updated.getDeliveryAttempts();
         assertThat(attempts).hasSize(1);
@@ -175,6 +175,7 @@ class DeliveryWorkerResilienceTest {
         assertThat(auditLogs).noneMatch(log -> log.getAction() == AuditAction.RETRY_SCHEDULED);
         assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.FAILED
                 && log.getMetadataReason().contains("Permanent provider rejection"));
+        assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.ROUTED_TO_DEAD_LETTER);
     }
 
     @Test
@@ -205,7 +206,7 @@ class DeliveryWorkerResilienceTest {
         deliveryWorker.processDelivery(saved.getNotificationId());
 
         Notification updated = notificationRepository.findById(saved.getNotificationId()).orElseThrow();
-        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
 
         List<DeliveryAttempt> attempts = updated.getDeliveryAttempts();
         assertThat(attempts.get(0).getAttemptNumber()).isEqualTo(1);
@@ -216,6 +217,7 @@ class DeliveryWorkerResilienceTest {
         assertThat(auditLogs).noneMatch(log -> log.getAction() == AuditAction.RETRY_SCHEDULED);
         assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.FAILED
                 && log.getMetadataReason().contains("HTTP 401"));
+        assertThat(auditLogs).anyMatch(log -> log.getAction() == AuditAction.ROUTED_TO_DEAD_LETTER);
     }
 }
 

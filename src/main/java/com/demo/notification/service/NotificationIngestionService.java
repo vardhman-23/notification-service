@@ -13,6 +13,8 @@ import com.demo.notification.domain.repository.AuditLogRepository;
 import com.demo.notification.domain.repository.NotificationRepository;
 import com.demo.notification.domain.types.AuditAction;
 import com.demo.notification.domain.types.NotificationStatus;
+import com.demo.notification.observability.NotificationMetrics;
+import com.demo.notification.util.DataMaskingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -40,23 +42,26 @@ import java.util.stream.Collectors;
 public class NotificationIngestionService {
 
     private final NotificationRepository notificationRepository;
+    private final NotificationPersistenceService persistenceService;
     private final AuditLogRepository auditLogRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final NotificationMetrics notificationMetrics;
 
     /**
      * Ingests a notification request with composite deduplication and audit recording.
+     * Concurrency collisions are cleanly caught via unique database constraints.
      *
      * @param request the incoming notification request DTO
      * @return {@link IngestionResult} containing mapped DTO and duplicate status flag
      */
-    @Transactional
     public IngestionResult ingestNotification(NotificationRequestDto request) {
+        notificationMetrics.incrementReceived();
         log.debug("Evaluating idempotency for sourceSystem='{}', eventId='{}', idempotencyKey='{}'",
                 request.getSourceSystem(), request.getEventId(), request.getIdempotencyKey());
 
         // 1. Check if an identical submission already exists by composite unique key or idempotencyKey
-        Optional<Notification> existingOpt = notificationRepository
-                .findBySourceSystemAndEventIdAndIdempotencyKey(
+        Optional<Notification> existingOpt =
+                notificationRepository.findBySourceSystemAndEventIdAndIdempotencyKey(
                         request.getSourceSystem(),
                         request.getEventId(),
                         request.getIdempotencyKey()
@@ -80,6 +85,7 @@ public class NotificationIngestionService {
                     .timestamp(Instant.now())
                     .build();
             auditLogRepository.save(suppressionLog);
+            notificationMetrics.incrementDuplicateSuppressed();
 
             return new IngestionResult(mapToDto(existing), true);
         }
@@ -114,7 +120,7 @@ public class NotificationIngestionService {
                 });
             }
 
-            Notification saved = notificationRepository.save(notification);
+            Notification saved = persistenceService.saveAndFlush(notification);
 
             // 3. Record initial AuditLog entry (tamper-evident audit trail with sanitized summary)
             AuditLog initialAuditLog = AuditLog.builder()
@@ -136,8 +142,8 @@ public class NotificationIngestionService {
 
         } catch (DataIntegrityViolationException ex) {
             // Concurrent submission collision handled gracefully via unique database constraint
-            log.warn("Concurrent submission collision on composite unique index for source='{}', event='{}'",
-                    request.getSourceSystem(), request.getEventId());
+            log.warn("Concurrent submission collision on composite unique index for source='{}', event='{}', idempotencyKey='{}'. Resolving to winner row.",
+                    request.getSourceSystem(), request.getEventId(), request.getIdempotencyKey());
 
             Notification existing = notificationRepository
                     .findBySourceSystemAndEventIdAndIdempotencyKey(
@@ -147,6 +153,16 @@ public class NotificationIngestionService {
                     )
                     .or(() -> notificationRepository.findByIdempotencyKey(request.getIdempotencyKey()))
                     .orElseThrow(() -> ex);
+
+            AuditLog suppressionLog = AuditLog.builder()
+                    .notificationId(existing.getNotificationId())
+                    .action(AuditAction.SUPPRESSED_DUPLICATE)
+                    .metadataReason("Race condition resolved via composite unique constraint for key: " + request.getIdempotencyKey())
+                    .sanitizedPayloadSummary(buildSanitizedSummary(request))
+                    .timestamp(Instant.now())
+                    .build();
+            auditLogRepository.save(suppressionLog);
+            notificationMetrics.incrementDuplicateSuppressed();
 
             return new IngestionResult(mapToDto(existing), true);
         }
@@ -159,8 +175,8 @@ public class NotificationIngestionService {
      * @return mapped response DTO
      */
     public NotificationResponseDto mapToDto(Notification entity) {
-        List<RecipientResponseDto> recipients = entity.getRecipients() == null ? Collections.emptyList() :
-                entity.getRecipients().stream()
+        List<RecipientResponseDto> recipients = (entity.getRecipients() != null && org.hibernate.Hibernate.isInitialized(entity.getRecipients()))
+                ? entity.getRecipients().stream()
                         .map(r -> RecipientResponseDto.builder()
                                 .id(r.getId())
                                 .recipientId(r.getRecipientId())
@@ -171,10 +187,11 @@ public class NotificationIngestionService {
                                 .quietHoursEnd(r.getQuietHoursEnd())
                                 .createdAt(r.getCreatedAt())
                                 .build())
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toList())
+                : Collections.emptyList();
 
-        List<DeliveryAttemptResponseDto> deliveryAttempts = entity.getDeliveryAttempts() == null ? Collections.emptyList() :
-                entity.getDeliveryAttempts().stream()
+        List<DeliveryAttemptResponseDto> deliveryAttempts = (entity.getDeliveryAttempts() != null && org.hibernate.Hibernate.isInitialized(entity.getDeliveryAttempts()))
+                ? entity.getDeliveryAttempts().stream()
                         .map(d -> DeliveryAttemptResponseDto.builder()
                                 .id(d.getId())
                                 .recipientId(d.getRecipientId())
@@ -188,7 +205,8 @@ public class NotificationIngestionService {
                                 .errorCategory(d.getErrorCategory())
                                 .createdAt(d.getCreatedAt())
                                 .build())
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toList())
+                : Collections.emptyList();
 
         return NotificationResponseDto.builder()
                 .notificationId(entity.getNotificationId())
@@ -218,7 +236,8 @@ public class NotificationIngestionService {
      */
     private String buildSanitizedSummary(NotificationRequestDto request) {
         int recipientCount = request.getRecipients() != null ? request.getRecipients().size() : 0;
-        return String.format("Type: %s, Severity: %s, Priority: %s, Recipients: %d",
-                request.getNotificationType(), request.getSeverity(), request.getPriority(), recipientCount);
+        String sanitizedSubject = DataMaskingUtils.maskSensitiveContent(request.getSubject());
+        return String.format("Type: %s, Severity: %s, Priority: %s, Recipients: %d, Subject: %s",
+                request.getNotificationType(), request.getSeverity(), request.getPriority(), recipientCount, sanitizedSubject);
     }
 }

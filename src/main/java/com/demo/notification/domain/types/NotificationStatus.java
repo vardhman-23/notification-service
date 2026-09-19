@@ -10,5 +10,6 @@ public enum NotificationStatus {
     DELIVERING,
     DELIVERED,
     FAILED,
-    RETRY_SCHEDULED
+    RETRY_SCHEDULED,
+    DEAD_LETTER
 }

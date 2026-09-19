@@ -167,9 +167,8 @@ class NotificationIngestionApiTest {
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Bad Request"))
-                .andExpect(jsonPath("$.details").isArray())
-                .andExpect(jsonPath("$.details").isNotEmpty());
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail").value("Invalid request content."));
     }
 }
 

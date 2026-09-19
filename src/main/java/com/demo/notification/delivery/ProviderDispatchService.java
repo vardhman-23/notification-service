@@ -12,6 +12,7 @@ import com.demo.notification.domain.types.AuditAction;
 import com.demo.notification.domain.types.DeliveryStatus;
 import com.demo.notification.exception.PermanentProviderException;
 import com.demo.notification.exception.TransientProviderException;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.retry.RetryRegistry;
 import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.annotation.PostConstruct;
@@ -27,6 +28,7 @@ import java.time.Instant;
  * Implements bounded exponential backoff retries for transient provider faults
  * (e.g. rate limits HTTP 429, timeouts, 503 service unavailable).
  * Permanent errors (HTTP 400 bad recipient, 401 unauthenticated) bypass retries and terminate immediately.
+ * Bulkhead limits concurrent provider execution to protect thread pools and system resources.
  */
 @Service
 @RequiredArgsConstructor
@@ -50,7 +52,7 @@ public class ProviderDispatchService {
     }
 
     /**
-     * Dispatches a notification to a specific channel provider with bounded retries.
+     * Dispatches a notification to a specific channel provider with bounded retries and bulkhead concurrency control.
      *
      * @param provider     the channel provider implementation (e.g., AWS SES, Twilio)
      * @param notification the parent notification aggregate
@@ -61,6 +63,7 @@ public class ProviderDispatchService {
      * @throws PermanentProviderException on non-retryable downstream failure
      */
     @Retry(name = "notificationDeliveryRetry", fallbackMethod = "onRetryExhausted")
+    @Bulkhead(name = "providerDispatchBulkhead")
     public DeliveryResponse dispatch(ChannelProvider provider,
                                      Notification notification,
                                      NotificationRecipient recipient,

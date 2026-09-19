@@ -115,16 +115,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorResponse'
-        '500':
-          description: Internal server error
+        '429':
+          description: Too Many Requests - Rate limit exceeded (RFC 7807)
           headers:
             X-Correlation-ID:
+              description: Distributed tracing ID
               schema:
                 type: string
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/ApiErrorResponse'
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: Internal server error (RFC 7807)
+          headers:
+            X-Correlation-ID:
+              description: Distributed tracing ID
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
 
   /api/v1/notifications/{id}:
     get:
@@ -459,6 +471,41 @@ components:
         correlationId:
           type: string
         details:
+          type: array
+          items:
+            type: string
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 / RFC 9457 standard problem details object
+      required:
+        - status
+        - title
+      properties:
+        type:
+          type: string
+          format: uri
+          example: "https://api.demo.com/errors/rate-limit-exceeded"
+        title:
+          type: string
+          example: "Too Many Requests"
+        status:
+          type: integer
+          example: 429
+        detail:
+          type: string
+          example: "Rate limit exceeded. Ingestion request throttled to protect downstream systems."
+        instance:
+          type: string
+          format: uri
+          example: "/api/v1/notifications"
+        correlationId:
+          type: string
+          example: "903677c0-6b24-4e9e-ac7a-949b2577a607"
+        timestamp:
+          type: string
+          format: date-time
+        invalidParams:
           type: array
           items:
             type: string

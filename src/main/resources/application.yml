@@ -37,6 +37,10 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT:6379}
       timeout: 2000ms
 
+  mvc:
+    problemdetails:
+      enabled: true
+
 server:
   port: 8080
 
@@ -44,10 +48,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: when_authorized
+      show-details: always
+      probes:
+        enabled: true
 
 resilience4j:
   retry:
@@ -60,6 +66,17 @@ resilience4j:
           - com.demo.notification.exception.TransientProviderException
         ignore-exceptions:
           - com.demo.notification.exception.PermanentProviderException
+  bulkhead:
+    instances:
+      providerDispatchBulkhead:
+        max-concurrent-calls: 25
+        max-wait-duration: 500ms
+  ratelimiter:
+    instances:
+      notificationIngestionRateLimiter:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 0ms
   circuitbreaker:
     instances:
       channelCircuitBreaker:

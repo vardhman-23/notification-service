@@ -155,7 +155,7 @@ class NotificationEndToEndIntegrationTest {
         deliveryWorker.processDelivery(saved.getNotificationId());
 
         Notification updated = notificationRepository.findById(saved.getNotificationId()).orElseThrow();
-        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
 
         List<DeliveryAttempt> attempts = deliveryAttemptRepository.findByNotificationNotificationId(saved.getNotificationId());
         assertThat(attempts).hasSize(1);
@@ -166,10 +166,10 @@ class NotificationEndToEndIntegrationTest {
         assertThat(attempt.getStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(attempt.getErrorCategory()).isEqualTo(ErrorCategory.RATE_LIMIT_EXCEEDED);
 
-        // Verify AuditLog recorded RETRY_SCHEDULED across attempts and final FAILED
+        // Verify AuditLog recorded RETRY_SCHEDULED across attempts and final ROUTED_TO_DEAD_LETTER
         List<AuditLog> logs = auditLogRepository.findByNotificationIdOrderByTimestampAsc(saved.getNotificationId());
         assertThat(logs).anyMatch(l -> l.getAction() == AuditAction.RETRY_SCHEDULED);
-        assertThat(logs).anyMatch(l -> l.getAction() == AuditAction.FAILED && l.getMetadataReason().contains("exhausting retries"));
+        assertThat(logs).anyMatch(l -> l.getAction() == AuditAction.ROUTED_TO_DEAD_LETTER);
     }
 
     @Test
@@ -200,7 +200,7 @@ class NotificationEndToEndIntegrationTest {
         deliveryWorker.processDelivery(saved.getNotificationId());
 
         Notification updated = notificationRepository.findById(saved.getNotificationId()).orElseThrow();
-        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(updated.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
 
         List<DeliveryAttempt> attempts = deliveryAttemptRepository.findByNotificationNotificationId(saved.getNotificationId());
         assertThat(attempts).hasSize(1);
@@ -212,10 +212,11 @@ class NotificationEndToEndIntegrationTest {
         assertThat(attempt.getErrorCategory()).isEqualTo(ErrorCategory.INVALID_RECIPIENT);
         assertThat(attempt.getProviderResponseCode()).isEqualTo("400");
 
-        // Verify AuditLog recorded FAILED without any RETRY_SCHEDULED entries
+        // Verify AuditLog recorded FAILED without any RETRY_SCHEDULED entries and routed to dead letter
         List<AuditLog> logs = auditLogRepository.findByNotificationIdOrderByTimestampAsc(saved.getNotificationId());
         assertThat(logs).noneMatch(l -> l.getAction() == AuditAction.RETRY_SCHEDULED);
         assertThat(logs).anyMatch(l -> l.getAction() == AuditAction.FAILED && l.getMetadataReason().contains("Permanent provider rejection"));
+        assertThat(logs).anyMatch(l -> l.getAction() == AuditAction.ROUTED_TO_DEAD_LETTER);
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.demo.notification.delivery.AsyncNotificationPipeline;
 import com.demo.notification.service.IngestionResult;
 import com.demo.notification.service.NotificationIngestionService;
 import com.demo.notification.service.NotificationQueryService;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,11 +51,13 @@ public class NotificationController {
 
     /**
      * Submits an alert or notification for ingestion, validation, deduplication, and asynchronous delivery.
+     * Protected by Resilience4j rate limiting.
      *
      * @param request the validated notification request payload
      * @return {@code 202 Accepted} with {@code Location} header if newly accepted, or {@code 200 OK} if duplicate
      */
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @RateLimiter(name = "notificationIngestionRateLimiter")
     @Operation(
             summary = "Submit an alert or notification",
             description = "Ingests a notification request. Evaluates composite idempotency (sourceSystem + eventId + idempotencyKey). " +
@@ -72,13 +76,18 @@ public class NotificationController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid payload or validation constraint failure",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+                    description = "Invalid payload or validation constraint failure (RFC 7807)",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Too Many Requests - Rate limit exceeded (RFC 7807)",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
                     responseCode = "500",
-                    description = "Internal server error",
-                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))
+                    description = "Internal server error (RFC 7807)",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))
             )
     })
     public ResponseEntity<NotificationResponseDto> submitNotification(@Valid @RequestBody NotificationRequestDto request) {

@@ -32,22 +32,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import com.demo.notification.observability.NotificationMetrics;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class NotificationIngestionServiceUnitTest {
 
     private NotificationRepository notificationRepository;
+    private NotificationPersistenceService persistenceService;
     private AuditLogRepository auditLogRepository;
     private ApplicationEventPublisher eventPublisher;
+    private NotificationMetrics notificationMetrics;
     private NotificationIngestionService service;
 
     @BeforeEach
     void setUp() {
         notificationRepository = mock(NotificationRepository.class);
+        persistenceService = mock(NotificationPersistenceService.class);
         auditLogRepository = mock(AuditLogRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new NotificationIngestionService(notificationRepository, auditLogRepository, eventPublisher);
+        notificationMetrics = mock(NotificationMetrics.class);
+        service = new NotificationIngestionService(notificationRepository, persistenceService, auditLogRepository, eventPublisher, notificationMetrics);
     }
 
     @Test
@@ -60,19 +65,19 @@ class NotificationIngestionServiceUnitTest {
                 .notificationType("ALERT")
                 .severity(Severity.LOW)
                 .priority(Priority.NORMAL)
-                .body("body")
+                .body("test body")
                 .build();
 
         Notification existing = Notification.builder()
                 .notificationId(UUID.randomUUID())
                 .sourceSystem("source-a")
-                .eventId("event-old")
+                .eventId("event-1")
                 .idempotencyKey("idem-key-1")
                 .notificationType("ALERT")
                 .severity(Severity.LOW)
                 .priority(Priority.NORMAL)
                 .status(NotificationStatus.ACCEPTED)
-                .body("old body")
+                .body("test body")
                 .build();
 
         when(notificationRepository.findBySourceSystemAndEventIdAndIdempotencyKey("source-a", "event-1", "idem-key-1"))
@@ -115,7 +120,7 @@ class NotificationIngestionServiceUnitTest {
         when(notificationRepository.findBySourceSystemAndEventIdAndIdempotencyKey("source-b", "event-2", "idem-key-2"))
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(existing));
-        when(notificationRepository.save(any(Notification.class)))
+        when(persistenceService.saveAndFlush(any(Notification.class)))
                 .thenThrow(new DataIntegrityViolationException("Duplicate key violation"));
 
         IngestionResult result = service.ingestNotification(request);
@@ -141,7 +146,7 @@ class NotificationIngestionServiceUnitTest {
                 .thenReturn(Optional.empty());
         when(notificationRepository.findByIdempotencyKey("idem-key-3"))
                 .thenReturn(Optional.empty());
-        when(notificationRepository.save(any(Notification.class)))
+        when(persistenceService.saveAndFlush(any(Notification.class)))
                 .thenThrow(new DataIntegrityViolationException("Unrecoverable DB error"));
 
         assertThatThrownBy(() -> service.ingestNotification(request))
@@ -180,7 +185,7 @@ class NotificationIngestionServiceUnitTest {
                 .thenReturn(Optional.empty());
         when(notificationRepository.findByIdempotencyKey("idem-key-4"))
                 .thenReturn(Optional.empty());
-        when(notificationRepository.save(any(Notification.class))).thenReturn(saved);
+        when(persistenceService.saveAndFlush(any(Notification.class))).thenReturn(saved);
 
         IngestionResult result = service.ingestNotification(request);
 

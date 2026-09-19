@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.demo.notification.observability.NotificationMetrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +43,7 @@ class DeliveryWorkerUnitTest {
     private AuditLogRepository auditLogRepository;
     private ChannelProviderRegistry channelProviderRegistry;
     private ProviderDispatchService providerDispatchService;
+    private NotificationMetrics notificationMetrics;
     private ChannelProvider emailProvider;
     private DeliveryWorker deliveryWorker;
 
@@ -51,6 +53,7 @@ class DeliveryWorkerUnitTest {
         deliveryAttemptRepository = mock(DeliveryAttemptRepository.class);
         auditLogRepository = mock(AuditLogRepository.class);
         providerDispatchService = mock(ProviderDispatchService.class);
+        notificationMetrics = mock(NotificationMetrics.class);
 
         emailProvider = mock(ChannelProvider.class);
         when(emailProvider.getChannelType()).thenReturn(ChannelType.EMAIL);
@@ -59,12 +62,15 @@ class DeliveryWorkerUnitTest {
 
         channelProviderRegistry = new ChannelProviderRegistry(List.of(emailProvider));
 
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
+
         deliveryWorker = new DeliveryWorker(
                 notificationRepository,
                 deliveryAttemptRepository,
                 auditLogRepository,
                 channelProviderRegistry,
-                providerDispatchService
+                providerDispatchService,
+                notificationMetrics
         );
     }
 
@@ -100,7 +106,7 @@ class DeliveryWorkerUnitTest {
 
         assertThat(attempt.getStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(attempt.getErrorMessage()).contains("Recipient metadata missing");
-        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
         verify(deliveryAttemptRepository).save(attempt);
     }
 
@@ -130,7 +136,7 @@ class DeliveryWorkerUnitTest {
 
         assertThat(attempt.getStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(attempt.getErrorMessage()).contains("No provider available");
-        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
         verify(deliveryAttemptRepository).save(attempt);
     }
 
@@ -162,8 +168,8 @@ class DeliveryWorkerUnitTest {
 
         assertThat(attempt.getStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(attempt.getErrorCategory()).isEqualTo(ErrorCategory.INVALID_RECIPIENT);
-        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.FAILED);
-        verify(auditLogRepository).save(any(AuditLog.class));
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
+        verify(auditLogRepository, org.mockito.Mockito.times(2)).save(any(AuditLog.class));
     }
 
     @Test
@@ -194,6 +200,7 @@ class DeliveryWorkerUnitTest {
 
         assertThat(attempt.getStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(attempt.getErrorMessage()).contains("Unexpected failure");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.DEAD_LETTER);
     }
 
     @Test

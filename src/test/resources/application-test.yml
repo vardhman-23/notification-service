@@ -33,6 +33,17 @@ resilience4j:
           - com.demo.notification.exception.TransientProviderException
         ignore-exceptions:
           - com.demo.notification.exception.PermanentProviderException
+  bulkhead:
+    instances:
+      providerDispatchBulkhead:
+        max-concurrent-calls: 25
+        max-wait-duration: 500ms
+  ratelimiter:
+    instances:
+      notificationIngestionRateLimiter:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 0ms
 
 notification:
   auto-dispatch:
