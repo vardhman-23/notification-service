@@ -174,7 +174,7 @@ Print-SubHeader "Audit Timeline (verifying RETRY_SCHEDULED and final FAILED)"
 foreach ($audit in $status4.auditTimeline) {
     if ($audit.action -eq "RETRY_SCHEDULED") {
         Write-Host "  [$($audit.timestamp)] $($audit.action) : $($audit.metadataReason)" -ForegroundColor Yellow
-    } elseif ($audit.action -eq "FAILED") {
+    } elseif ($audit.action -eq "FAILED" -or $audit.action -eq "ROUTED_TO_DEAD_LETTER") {
         Write-Host "  [$($audit.timestamp)] $($audit.action) : $($audit.metadataReason)" -ForegroundColor Red
     } else {
         Write-Host "  [$($audit.timestamp)] $($audit.action) : $($audit.metadataReason)" -ForegroundColor Gray
@@ -216,7 +216,7 @@ foreach ($dp in $status5.deliveryProgress) {
 }
 Print-SubHeader "Audit Timeline"
 foreach ($audit in $status5.auditTimeline) {
-    if ($audit.action -eq "FAILED") {
+    if ($audit.action -eq "FAILED" -or $audit.action -eq "ROUTED_TO_DEAD_LETTER") {
         Write-Host "  [$($audit.timestamp)] $($audit.action) : $($audit.metadataReason)" -ForegroundColor Red
     } else {
         Write-Host "  [$($audit.timestamp)] $($audit.action) : $($audit.metadataReason)" -ForegroundColor Gray

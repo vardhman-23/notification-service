@@ -15,7 +15,7 @@ This production-oriented prototype accepts notification and alert requests from 
 | **2. Architecture Overview** | [`docs/ARCHITECTURE.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/ARCHITECTURE.md) | Component architecture, control flow sequence diagrams, state machine, DDD domain entities |
 | **3. Three Scenarios** | [`docs/SCENARIOS.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/SCENARIOS.md)<br>[`docs/scenarios/ambiguous-routing.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/scenarios/ambiguous-routing.md) | Greenfield, Brownfield (Resilience4j), and Ambiguous Requirement (ADR-001 Intelligent Fallback) with decomposition, execution, & empirical validation |
 | **4. Setup Instructions** | [`README.md` (Section 1)](#1-quick-start-run-locally-in-seconds) | Zero-dependency local startup (`dev` profile with H2), Docker Compose orchestration |
-| **5. Testing & Trade-offs** | [`docs/TESTING_AND_TRADE_OFFS.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/TESTING_AND_TRADE_OFFS.md) | Testing pyramid (32 automated tests passing), traceability matrix, system limitations, and architectural trade-offs |
+| **5. Testing & Trade-offs** | [`docs/TESTING_AND_TRADE_OFFS.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/TESTING_AND_TRADE_OFFS.md)<br>[`docs/TEST_REPORT.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/TEST_REPORT.md) | Testing pyramid (107 automated tests passing, 98.88% coverage), traceability matrix, system limitations, and architectural trade-offs |
 
 ---
 
@@ -313,18 +313,24 @@ curl http://localhost:8080/api/v1/notifications/{notificationId}
 
 ## 6. Testing & Quality Assurance
 
-The test suite contains **32 tests** covering every architectural layer:
+The test suite contains **107 passing tests** covering every architectural layer with **98.88% Line Coverage** (968 / 979 lines) and **86.33% Branch Coverage** (221 / 256 branches), far exceeding the strict 97.0% JaCoCo build gate.
+
+For the complete package breakdown and verification metrics, see [`docs/TEST_REPORT.md`](file:///c:/Users/jainv/.gemini/antigravity/scratch/notification-service/docs/TEST_REPORT.md).
 
 - **Schema Migration Tests**: `FlywaySchemaMigrationTest` validates flyway DDL scripts against PostgreSQL mode.
-- **Idempotency & Ingestion Tests**: `NotificationIngestionApiTest` verifies payload validation, 202 Accepted, duplicate suppression, and composite unique keys.
+- **Idempotency & Ingestion Tests**: `NotificationIngestionApiTest` and `NotificationIngestionServiceTest` verify payload validation, 202 Accepted, duplicate suppression, composite unique keys, and race condition handling.
 - **Strategy & Routing Tests**: `RoutingServiceTest` and `IntelligentFallbackRoutingTest` verify channel resolution, quiet-hour diversion windows, opt-out fallbacks, and regulatory overrides.
-- **Resilience & Fault Handling Tests**: `DeliveryWorkerResilienceTest` tests Resilience4j retry intervals, transient error backoff, and immediate permanent error halting.
+- **Resilience, Rate Limit & Fault Handling Tests**: `DeliveryWorkerResilienceTest` and `RateLimitFilterTest` test Resilience4j retry intervals, transient error backoff, immediate permanent error halting, DLQ terminal routing, and Bucket4j IP token bucket rate limiting.
 - **End-to-End Tests**: `NotificationEndToEndIntegrationTest` tests all 5 scenarios end-to-end against full web and persistence context.
 - **Testcontainers**: `NotificationEndToEndTestcontainersTest` contains real PostgreSQL 16 container tests with graceful degradation (`@DisabledIf("isDockerUnavailable")`) when running in environments without Docker daemon.
 
-Run the test suite with:
+Run the test suite and verify JaCoCo coverage with:
 ```powershell
-.\mvnw.cmd test
+# Windows
+.\mvnw.cmd clean verify
+
+# Linux / macOS
+./mvnw clean verify
 ```
 
 ---

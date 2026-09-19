@@ -62,26 +62,26 @@ Enhance the system with production-grade failure handling, resilience, and error
           ignore-exceptions:
             - com.demo.notification.exception.PermanentProviderException
   ```
-- **Fallback Recovery**: Attached `fallbackMethod = "onRetryExhausted"` to mark the delivery attempt `FAILED` and record terminal audit logs when retry limits are reached.
+- **Fallback Recovery & Dead-Letter Routing**: Attached `fallbackMethod = "onRetryExhausted"` to transition the notification to `DEAD_LETTER` terminal state and record `ROUTED_TO_DEAD_LETTER` audit log when retry limits are reached or a permanent provider rejection occurs.
 
 ### 2.3 Validation Evidence
 - **Automated Tests**:
-  - `DeliveryWorkerResilienceTest.testTransientFailure_TriggersBoundedRetryAndRecordsRetryScheduled`: Verifies 3 attempts made with `RETRY_SCHEDULED` audit entries before final failure.
-  - `DeliveryWorkerResilienceTest.testPermanentFailure_TerminatesImmediatelyWithoutRetry`: Verifies termination strictly on attempt #1 with zero retries.
+  - `DeliveryWorkerResilienceTest.testTransientFailure_TriggersBoundedRetryAndRecordsRetryScheduled`: Verifies 3 attempts made with `RETRY_SCHEDULED` audit entries before final dead-letter routing.
+  - `DeliveryWorkerResilienceTest.testPermanentFailure_TerminatesImmediatelyWithoutRetry`: Verifies termination strictly on attempt #1 with zero retries routed directly to `DEAD_LETTER`.
 - **Live Terminal Proof (`.\demo.ps1`)**:
   ```
   Scenario 4 (Transient):
-    Aggregate Status: FAILED
-    Attempts Made: 4 | Final Status: FAILED | Error Category: RATE_LIMIT_EXCEEDED
-    [02:29:21] RETRY_SCHEDULED : Retry scheduled for recipient 'client_risk_03' on EMAIL (attempt #1): Rate limit exceeded...
-    [02:29:21] RETRY_SCHEDULED : Retry scheduled for recipient 'client_risk_03' on EMAIL (attempt #2): Rate limit exceeded...
-    [02:29:22] RETRY_SCHEDULED : Retry scheduled for recipient 'client_risk_03' on EMAIL (attempt #3): Rate limit exceeded...
-    [02:29:22] FAILED          : Delivery failed after exhausting retries for recipient 'client_risk_03' on EMAIL
+    Aggregate Status: DEAD_LETTER
+    Attempts Made: 3 | Final Status: DEAD_LETTER | Error Category: RATE_LIMIT_EXCEEDED
+    [02:29:21] RETRY_SCHEDULED        : Retry scheduled for recipient 'client_risk_03' on EMAIL (attempt #1): Rate limit exceeded...
+    [02:29:21] RETRY_SCHEDULED        : Retry scheduled for recipient 'client_risk_03' on EMAIL (attempt #2): Rate limit exceeded...
+    [02:29:22] RETRY_SCHEDULED        : Retry scheduled for recipient 'client_risk_03' on EMAIL (attempt #3): Rate limit exceeded...
+    [02:29:22] ROUTED_TO_DEAD_LETTER  : Notification delivery permanently failed. Routed to Dead Letter Queue (DLQ).
 
   Scenario 5 (Permanent):
-    Aggregate Status: FAILED
-    Attempt Number: 1 (Zero Retries) | Status: FAILED | Error Category: INVALID_RECIPIENT
-    [02:29:25] FAILED : Permanent provider rejection (HTTP 400) for recipient 'client_bad_04' on EMAIL
+    Aggregate Status: DEAD_LETTER
+    Attempt Number: 1 (Zero Retries) | Status: DEAD_LETTER | Error Category: INVALID_RECIPIENT
+    [02:29:25] ROUTED_TO_DEAD_LETTER : Permanent provider rejection (HTTP 400) for recipient 'client_bad_04' on EMAIL. Routed to DLQ.
   ```
 
 ---
