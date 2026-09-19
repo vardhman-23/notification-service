@@ -51,8 +51,8 @@ chmod +x demo.sh
 
 ### 3. Run the Automated Test Suite
 ```powershell
-# Runs all 32 unit, integration, and resilience tests
-.\mvnw.cmd clean test
+# Runs all 107 unit, integration, resilience, and concurrency tests (98.88% coverage)
+.\mvnw.cmd clean verify
 ```
 
 ---
@@ -61,45 +61,45 @@ chmod +x demo.sh
 
 ```mermaid
 flowchart TD
-    Client[Upstream Clients: Trading, Risk, Advisory] -->|POST /api/v1/notifications| IngestionCtrl[NotificationController]
-    
-    subgraph Ingestion ["Stage 1 & 2: Ingestion & Deduplication Gate"]
-        IngestionCtrl --> IngestSvc[NotificationIngestionService]
-        IngestSvc -->|Composite Key Check| IdemRepo[(Idempotency / DB)]
-        IngestSvc -->|Log ACCEPTED / SUPPRESSED| AuditRepo[(AuditLog)]
-        IngestSvc -->|Publish| AcceptedEvent[NotificationAcceptedEvent]
+    Client([Upstream Client: Trading, Risk, Advisory]) -->|POST /api/v1/notifications| IngestionCtrl[NotificationController]
+
+    subgraph Stage1 ["Stage 1: Ingestion & Deduplication Gate"]
+        IngestionCtrl --> RateLimit["Rate Limiter (Resilience4j)"]
+        RateLimit --> IngestSvc[NotificationIngestionService]
+        IngestSvc --> IdemCheck{"Composite Idempotency Check<br/>(Source + Event + Key)"}
+        IdemCheck -- Duplicate Found --> Res200["Return HTTP 200 OK (Suppressed)"]
+        IdemCheck -- New Request --> SaveDB["Atomic Persistence (REQUIRES_NEW)"]
+        SaveDB --> AuditLog1[(Audit Log: ACCEPTED)]
+        SaveDB --> AcceptedEvent["Publish NotificationAcceptedEvent"]
     end
 
-    subgraph AsyncPipeline ["Stage 2 & 3: Asynchronous Pipeline"]
-        AcceptedEvent -->|@Async @TransactionalEventListener| Pipeline[AsyncNotificationPipeline]
-        Pipeline --> RouteSvc[RoutingService]
-        
-        subgraph RoutingEngine ["Stage 4: Strategy Routing & Intelligent Fallback"]
-            RouteSvc --> StratReg[ChannelProviderRegistry]
-            StratReg --> EmailProv[EmailChannelProvider - AWS SES]
-            StratReg --> SmsProv[SmsChannelProvider - Twilio]
-            RouteSvc -->|ADR-001 Policy| FallbackEngine{Severity == CRITICAL?}
-            FallbackEngine -- Yes --> RegOverride[Tier 1: Regulatory Override - Force SMS+EMAIL]
-            FallbackEngine -- No --> QuietCheck{Quiet Hours / Opt-Out?}
-            QuietCheck -- Yes --> FallbackAction[Tier 2/3: Divert SMS -> EMAIL]
-            QuietCheck -- No --> StandardRoute[Standard Preferred Channel]
-        end
-
-        RouteSvc --> StagedAttempts[(Delivery Attempts Staged)]
-        Pipeline --> DelivWorker[DeliveryWorker]
-        
-        subgraph Resilience ["Stage 3: Resilient Delivery & Classification"]
-            DelivWorker --> DispatchSvc[ProviderDispatchService]
-            DispatchSvc -->|Resilience4j @Retry| Provider[Provider Dispatch]
-            Provider -->|HTTP 429/503/Timeout| TransientErr[Transient: Exponential Backoff Retry]
-            Provider -->|HTTP 400/401| PermErr[Permanent: Immediate Termination]
-        end
+    subgraph Stage2 ["Stage 2: Strategy Routing & Fallbacks"]
+        AcceptedEvent --> RouteSvc[RoutingService]
+        RouteSvc --> StratReg[ChannelProviderRegistry]
+        StratReg --> PolicyCheck{"Evaluate Policy (ADR-001)"}
+        PolicyCheck -- "Severity == CRITICAL" --> RegOverride["Tier 1: Regulatory Override (SMS + EMAIL)"]
+        PolicyCheck -- "Quiet Hours or Opt-Out" --> Fallback["Tier 2/3: Intelligent Fallback to EMAIL"]
+        PolicyCheck -- "Standard Request" --> PrefRoute["Standard Preferred Channel"]
+        RegOverride --> StagedAttempts[(Stage Delivery Attempts in DB)]
+        Fallback --> StagedAttempts
+        PrefRoute --> StagedAttempts
     end
 
-    subgraph QueryAPI ["Stage 3: Query & Observability"]
-        Client -->|GET /api/v1/notifications/{id}| QueryCtrl[NotificationController]
+    subgraph Stage3 ["Stage 3: Resilient Delivery & DLQ"]
+        StagedAttempts --> Worker[DeliveryWorker]
+        Worker --> Bulkhead["Semaphore Bulkhead (Max 20 concurrent)"]
+        Bulkhead --> DispatchSvc[ProviderDispatchService]
+        DispatchSvc --> Providers["External Providers (AWS SES, Twilio, Webhook)"]
+        Providers -- Success --> MarkSent["Mark SENT and Audit DELIVERED"]
+        Providers -- "Transient (429, 503, Timeout)" --> RetryLoop["Exponential Backoff Retry (Max 3)"]
+        Providers -- "Permanent (400, 401) or Exhausted" --> DLQRoute["Route to DEAD_LETTER and Compliance Audit"]
+    end
+
+    subgraph Stage4 ["Stage 4: Query & Observability"]
+        Client -->|GET /api/v1/notifications/:id| QueryCtrl[NotificationController]
         QueryCtrl --> QuerySvc[NotificationQueryService]
-        QuerySvc --> DBView[(Notification + Attempts + Audit)]
+        QuerySvc --> DBView[(Notification + Attempts + Audit Timeline)]
+        Prometheus[Prometheus / Actuator] -->|GET /actuator/health| MetricsView[Health Indicators & Micrometer Metrics]
     end
 ```
 
